@@ -32,7 +32,7 @@ int main(void)
     const int screenWidth = GetMonitorWidth(0);
     const int screenHeight = GetMonitorHeight(0);
 
-    InitWindow(screenWidth, screenHeight, "Tile Board with Timer and Restart");
+    InitWindow(screenWidth, screenHeight, "TileStorm - Tile Match Game");
 
     SetTargetFPS(60);
     srand((unsigned int)time(NULL));

@@ -279,7 +279,7 @@ void DrawRestartScreen(Vector2 mouse)
 
 int main()
 {
-    InitWindow(GetMonitorWidth(0), GetMonitorHeight(0), "Tile Match Game - C++ Raylib");
+    InitWindow(GetMonitorWidth(0), GetMonitorHeight(0), "TileStorm - Tile Match Game");
     InitAudioDevice();
     SetTargetFPS(60);
     srand(time(NULL));
