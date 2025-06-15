@@ -27,6 +27,11 @@ const int TIMER_START = 60;
 int timer_seconds = TIMER_START;
 double last_time = 0.0;
 
+// Match delay variables
+bool should_remove_matches = false;
+bool matches_found = false;
+float remove_matches_timer = 0.0f;
+
 char RandomTile()
 {
     return tile_chars[GetRandomValue(0, TILE_TYPES - 1)];
@@ -118,6 +123,9 @@ void RemoveMatches()
             if (matches[i][j])
                 matched_tiles++;
 
+    if (matched_tiles > 0)
+        timer_seconds = std::min(99, timer_seconds + 1);
+
     score += matched_tiles * 10;
     if (score > high_score)
     {
@@ -156,53 +164,78 @@ void InitBoard()
 
 void DrawBoard()
 {
-    for (int r = 0; r < BOARD_SIZE; r++)
+    for (int r = 0; r < BOARD_SIZE; ++r)
     {
-        for (int c = 0; c < BOARD_SIZE; c++)
+        for (int c = 0; c < BOARD_SIZE; ++c)
         {
             float x = grid_origin.x + c * TILE_SIZE;
             float y = grid_origin.y + r * TILE_SIZE - fall_offset[r][c];
             Rectangle tileRect = {x, y, TILE_SIZE, TILE_SIZE};
 
-            // Hover highlight
-            if ((int)hovered_tile.x == c && (int)hovered_tile.y == r)
+            // ✅ Highlight matched tiles with green background
+            // if (matches[r][c])
+            // {
+            //     DrawRectangleRec(tileRect, Fade(GREEN, 0.4f)); // Matched highlight
+            // }
+            if (matches[r][c] && should_remove_matches)
+            {
+                float alpha = 0.4f + 0.6f * (remove_matches_timer / 0.5f);
+                DrawRectangleRec(tileRect, Fade(GREEN, alpha));
+            }
+
+            // ✨ Hover and selection highlights
+            if (static_cast<int>(hovered_tile.x) == c && static_cast<int>(hovered_tile.y) == r)
                 DrawRectangleRec(tileRect, Fade(SKYBLUE, 0.3f));
 
-            // Selected highlight
-            if ((int)selected_tile.x == c && (int)selected_tile.y == r)
+            if (static_cast<int>(selected_tile.x) == c && static_cast<int>(selected_tile.y) == r)
                 DrawRectangleRec(tileRect, Fade(RED, 0.2f));
 
-            // Tile background base
-            DrawRectangleRounded((Rectangle){x + 5, y + 5, TILE_SIZE - 10, TILE_SIZE - 10}, 0.3f, 6, Fade(LIGHTGRAY, 0.2f));
-            DrawRectangleRounded((Rectangle){x + 9, y + 9, TILE_SIZE - 10, TILE_SIZE - 10}, 0.3f, 6, Fade(BLACK, 0.2f));
+            // Tile background effects
+            DrawRectangleRounded({x + 5, y + 5, TILE_SIZE - 10, TILE_SIZE - 10}, 0.3f, 6, Fade(LIGHTGRAY, 0.2f));
+            DrawRectangleRounded({x + 9, y + 9, TILE_SIZE - 10, TILE_SIZE - 10}, 0.3f, 6, Fade(BLACK, 0.2f));
 
-            // Tile symbol
+            // Tile content
             if (board[r][c] != ' ')
             {
-                Color color = board[r][c] == '@' ? GREEN : board[r][c] == '#' ? RED
-                                                       : board[r][c] == '$'   ? BLUE
-                                                       : board[r][c] == '%'   ? YELLOW
-                                                                              : PURPLE;
+                Color color = (board[r][c] == '@') ? GREEN : (board[r][c] == '#') ? RED
+                                                         : (board[r][c] == '$')   ? BLUE
+                                                         : (board[r][c] == '%')   ? YELLOW
+                                                                                  : PURPLE;
 
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < 3; ++i)
+                {
                     DrawTextEx(GetFontDefault(),
                                TextFormat("%c", board[r][c]),
-                               (Vector2){x + TILE_SIZE / 3 - i, y + TILE_SIZE / 4 - i},
+                               {x + TILE_SIZE / 3 - i, y + TILE_SIZE / 4 - i},
                                50, 1, Fade(color, 0.2f));
+                }
 
                 DrawTextEx(GetFontDefault(),
                            TextFormat("%c", board[r][c]),
-                           (Vector2){x + TILE_SIZE / 3, y + TILE_SIZE / 4},
+                           {x + TILE_SIZE / 3, y + TILE_SIZE / 4},
                            50, 1, color);
             }
         }
     }
 
-    // Update falling animation
-    for (int i = 0; i < BOARD_SIZE; i++)
-        for (int j = 0; j < BOARD_SIZE; j++)
+    // 🌠 Apply falling animation
+    for (int i = 0; i < BOARD_SIZE; ++i)
+    {
+        for (int j = 0; j < BOARD_SIZE; ++j)
+        {
             if (fall_offset[i][j] > 0)
                 fall_offset[i][j] = std::max(0.0f, fall_offset[i][j] - fall_speed);
+        }
+    }
+}
+
+bool IsAnyTileFalling()
+{
+    for (int i = 0; i < BOARD_SIZE; ++i)
+        for (int j = 0; j < BOARD_SIZE; ++j)
+            if (fall_offset[i][j] > 0)
+                return true;
+    return false;
 }
 
 void GameLogic(Vector2 mouse)
@@ -226,7 +259,11 @@ void GameLogic(Vector2 mouse)
                     if (!FindMatches())
                         SwapTiles((int)selected_tile.y, (int)selected_tile.x, r, c);
                     else
-                        RemoveMatches();
+                    {
+                        matches_found = true;
+                        remove_matches_timer = 0.5f;
+                        should_remove_matches = true;
+                    }
                 }
                 selected_tile = {-1, -1};
             }
@@ -235,8 +272,28 @@ void GameLogic(Vector2 mouse)
     else
         hovered_tile = {-1, -1};
 
-    if (FindMatches())
-        RemoveMatches();
+    if (should_remove_matches)
+    {
+        remove_matches_timer -= GetFrameTime();
+        if (remove_matches_timer <= 0.0f)
+        {
+            RemoveMatches();
+            should_remove_matches = false;
+        }
+    }
+    else if (!should_remove_matches && !IsAnyTileFalling() && FindMatches())
+    {
+        matches_found = true;
+        remove_matches_timer = 0.5f;
+        should_remove_matches = true;
+    }
+
+    // else if (FindMatches())
+    // {
+    //     matches_found = true;
+    //     remove_matches_timer = 0.5f;
+    //     should_remove_matches = true;
+    // }
 
     DrawBoard();
 
